@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ranking CBI</title>
+<style>
+:root{--bg:#f3f5f9;--card:#fff;--ink:#14213d;--mut:#5b6678;--line:#e1e6ee;--gold:#f2a900;--navy:#14213d;--ok:#1f9d55;--bad:#c53030}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--navy);color:#fff;padding:18px 16px 14px}
+header h1{margin:0;font-size:1.25rem}
+header p{margin:4px 0 0;color:#c9d2e3;font-size:.9rem}
+.wrap{max-width:1100px;margin:0 auto;padding:12px 12px 40px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin:10px 0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1px solid #c5cdd9;background:#fff;color:var(--ink);padding:8px 14px;border-radius:999px;font-size:.9rem;font-weight:600;cursor:pointer}
+.tab:hover{background:#eef1f6}
+.tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:14px}
+.card h2{margin:0 0 10px;font-size:1.05rem}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:8px 8px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.03em;color:var(--mut);background:#fafbfd}
+td.l,th.l{text-align:left}
+tr.top1 td.pos{color:var(--gold);font-weight:800}
+.pts{font-weight:800}
+.pos{font-weight:700}
+.pos1{background:#fff4d1;font-weight:800}
+.pos2{background:#eef1f6;font-weight:700}
+.pos3{background:#fbe9dc;font-weight:700}
+.sit{font-size:.78rem;color:var(--mut);text-align:left}
+.sit.g{color:var(--ok);font-weight:700}
+.sit.x{color:var(--bad)}
+.adjp{color:var(--ok)}.adjn{color:var(--bad)}
+.mut{color:var(--mut);font-size:.8rem}
+button,select,input{font:inherit}
+button{border:0;background:var(--navy);color:#fff;padding:8px 14px;border-radius:8px;cursor:pointer}
+button.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button.del{background:#fff;color:var(--bad);border:1px solid var(--line);padding:4px 10px}
+select,input[type=text],input[type=number],input[type=email],input[type=password]{padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;max-width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.item{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.item.dup{border-color:var(--bad);background:#fff5f5}
+.warn{background:#fff8e1;border:1px solid #f2d27a;color:#6b4e00;padding:8px 12px;border-radius:8px;font-size:.88rem;margin-bottom:10px}
+.status{font-size:.8rem;color:var(--mut)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#bbb;margin-right:6px}
+.dot.on{background:var(--ok)}
+.hidden{display:none}
+@media(max-width:600px){th,td{padding:7px 5px;font-size:.82rem}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="titulo"></h1>
+  <p id="subtitulo"></p>
+</header>
+<div class="wrap">
+  <div class="bar">
+    <div class="tabs" id="tabs"></div>
+    <div class="row" style="margin:0">
+      <span class="status"><span class="dot" id="dot"></span><span id="conn">conectando…</span></span>
+      <span id="authbox"></span>
+    </div>
+  </div>
+  <div id="aviso"></div>
+  <div id="v-ranking"></div>
+  <div id="v-lanc" class="hidden"></div>
+  <div id="v-parcial" class="hidden"></div>
+  <div id="v-saldos" class="hidden"></div>
+  <div id="v-adj" class="hidden"></div>
+  <div id="v-bkp" class="hidden"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ============ CONFIGURAÇÃO (edite aqui) ============ */
+const CONFIG = {
+  titulo: 'CBI — Ranking por clubes',
+  subtitulo: 'Classificação geral por clubes',
+  arquivo: 'cbi',                    // usado no nome dos arquivos de backup e CSV
+  // Regulamento CBI, item 12 — tabela CBI-BT 300 (as 12 primeiras posições, porque há 12 clubes)
+  pontos: [300, 270, 240, 210, 180, 165, 150, 135, 120, 105, 90, 75],
+  pontosProvisorio: false,           // true mostra um aviso de tabela provisória
+  desempateCategoria: null,          // o CBI não usa o resultado em uma categoria como critério
+  // Item 12: 1º lugares, 2º, 3º, saldo de partidas, game average e sorteio
+  textoDesempate: 'mais 1º lugares, depois mais 2º, mais 3º, saldo de partidas, game average e, por fim, sorteio.',
+  saldoCampos: [ {k:'j', nome:'Saldo de partidas', step:'1'}, {k:'g', nome:'Game average', step:'any'} ],
+  // Classificações exibidas na aba Ranking (item 12: Profissional e Base são separadas)
+  grupos: [
+    {id:'geral', nome:'Geral', cats:null},
+    {id:'pro', nome:'Profissional', cats:['FPRO','MPRO']},
+    {id:'base', nome:'Base (Sub-16 e Sub-18)', cats:['F16','F18','M16','M18']}
+  ],
+  equipes: [
+    {id:'AME', nome:'America Futebol Clube', sigla:''},
+    {id:'CAX', nome:'Caxangá Golf Country Club', sigla:''},
+    {id:'PAU', nome:'Club Athletico Paulistano', sigla:''},
+    {id:'CAM', nome:'Clube Campestre', sigla:''},
+    {id:'PIR', nome:'Clube de Campo de Piracicaba', sigla:''},
+    {id:'CSN', nome:'Clube dos Funcionários Volta Redonda / CSN', sigla:''},
+    {id:'COR', nome:'Esporte Clube União Corinthians', sigla:''},
+    {id:'GLP', nome:'Grêmio Literário e Recreativo Português', sigla:''},
+    {id:'JUB', nome:'Jockey Clube de Uberaba', sigla:''},
+    {id:'PIC', nome:'Pampulha Iate Clube — PIC', sigla:''},
+    {id:'PRA', nome:'Praia Clube de Uberlândia', sigla:''},
+    {id:'STC', nome:'Tênis Clube Santa Cruz', sigla:''}
+  ],
+  categorias: [
+    {id:'FPRO', nome:'Fem. Pro'}, {id:'F16', nome:'Fem. Sub-16'}, {id:'F18', nome:'Fem. Sub-18'},
+    {id:'MPRO', nome:'Masc. Pro'}, {id:'M16', nome:'Masc. Sub-16'}, {id:'M18', nome:'Masc. Sub-18'}
+  ],
+  // Atalhos da aba Parcial: [rótulo, melhor posição, pior posição]. Ajuste à chave do CBI.
+  presets: [
+    ['Semifinal · 1º–4º', 1, 4], ['Disputa de 5º a 8º', 5, 8], ['Disputa de 9º a 12º', 9, 12],
+    ['Final · 1º–2º', 1, 2], ['Disputa de 3º · 3º–4º', 3, 4], ['Disputa de 5º · 5º–6º', 5, 6], ['Disputa de 7º · 7º–8º', 7, 8],
+    ['Disputa de 9º · 9º–10º', 9, 10], ['Disputa de 11º · 11º–12º', 11, 12]
+  ],
+  presetGrupos: [
+    ['1ª parcial — fase inicial (semifinal e disputas de 5º a 8º e 9º a 12º)', [0, 1, 2]],
+    ['2ª parcial — decisões por colocação (substitui a faixa anterior)', [3, 4, 5, 6, 7, 8]]
+  ],
+  firebase: {
+    apiKey: "AIzaSyBF2pzKfNhvDY3B1BG6EzFfoYtj0xIdnzI",
+    authDomain: "brasileiro-cbi-finails-2026.firebaseapp.com",
+    databaseURL: "https://brasileiro-cbi-finails-2026-default-rtdb.firebaseio.com",
+    projectId: "brasileiro-cbi-finails-2026",
+    storageBucket: "brasileiro-cbi-finails-2026.firebasestorage.app",
+    messagingSenderId: "264553671821",
+    appId: "1:264553671821:web:bec4dc7dfc7822f75186c4"
+  }
+};
+
+/* ============ LÓGICA DE CÁLCULO (pura) ============ */
+//LOGIC-START
+function calcular(cfg, state, adj, saldos, parcial){
+  const R = {};
+  cfg.equipes.forEach(t => R[t.id] = {t, base:0, adj:0, c:[0,0,0], sj:0, ss:0, sg:0, pmin:0, pmax:0, pend:[], pro:99, cats:{}});
+  cfg.categorias.forEach(c => {
+    const cs = (state && state[c.id]) || {};
+    Object.keys(cs).forEach(id => {
+      const v = cs[id];
+      if(!R[id] || !v || v.out || !v.pos) return;
+      const p = Number(v.pos);
+      R[id].base += cfg.pontos[p-1] || 0;
+      R[id].cats[c.id] = p;
+      if(p <= 3) R[id].c[p-1]++;
+      if(c.id === cfg.desempateCategoria) R[id].pro = p;
+    });
+  });
+  Object.values(adj || {}).forEach(a => {
+    if(a && R[a.team]) R[a.team].adj += Number(a.pts) || 0;
+  });
+  // Parcial: faixas de posição informadas para categorias ainda não definidas
+  let concl = 0;
+  cfg.categorias.forEach(c => {
+    const cs = (state && state[c.id]) || {};
+    const pc = (parcial && parcial[c.id]) || {};
+    const taken = {};
+    Object.keys(cs).forEach(id => { const v = cs[id]; if(v && !v.out && v.pos) taken[Number(v.pos)] = 1; });
+    let best = 1; while(taken[best]) best++;
+    let pend = 0;
+    cfg.equipes.forEach(t => {
+      const v = cs[t.id];
+      if(v && (v.out || v.pos)) return;      // resultado oficial lançado: a faixa deixa de valer
+      pend++;
+      const f = pc[t.id];
+      let gmin = 0, gmax = cfg.pontos[best-1] || 0;
+      if(f && Number(f.a) && Number(f.b) && Number(f.a) <= Number(f.b)){
+        const a = Math.max(Number(f.a), best);
+        gmin = cfg.pontos[Number(f.b)-1] || 0;
+        gmax = cfg.pontos[a-1] || 0;
+        if(gmin > gmax) gmin = gmax;
+      }
+      R[t.id].pmin += gmin; R[t.id].pmax += gmax; R[t.id].pend.push(c.id);
+    });
+    if(!pend) concl++;
+  });
+  Object.keys(saldos || {}).forEach(id => {
+    const s = saldos[id];
+    if(R[id] && s){ R[id].sj = Number(s.j)||0; R[id].ss = Number(s.s)||0; R[id].sg = Number(s.g)||0; }
+  });
+  const arr = Object.values(R);
+  arr.forEach(r => { r.total = r.base + r.adj + r.pmin; r.max = r.base + r.adj + r.pmax; });
+  const key = r => [-r.total, -r.c[0], -r.c[1], -r.c[2], -r.sj, -r.ss, -r.sg, r.pro].join('|');
+  arr.sort((a,b) => {
+    const ka = [-a.total,-a.c[0],-a.c[1],-a.c[2],-a.sj,-a.ss,-a.sg,a.pro], kb = [-b.total,-b.c[0],-b.c[1],-b.c[2],-b.sj,-b.ss,-b.sg,b.pro];
+    for(let i=0;i<ka.length;i++){ if(ka[i]!==kb[i]) return ka[i]-kb[i]; }
+    return a.t.nome.localeCompare(b.t.nome,'pt-BR');
+  });
+  let last = null, lastRank = 0;
+  arr.forEach((r,i) => {
+    const k = key(r);
+    if(k === last){ r.rank = lastRank; r.tie = true; } else { r.rank = i+1; lastRank = r.rank; last = k; }
+  });
+  arr.concl = concl; arr.nCat = cfg.categorias.length; arr.parcial = concl < arr.nCat;
+  arr.forEach(r => {
+    const o = arr.filter(x => x !== r);
+    const maxOthersG = Math.max(...o.map(x => x.total));
+    const maxOthersM = Math.max(...o.map(x => x.max));
+    const above = o.filter(x => x.max >= r.total).length;   // quem ainda pode alcançá-la ou passá-la
+    const below = o.filter(x => x.total > r.max).length;    // quem já está garantidamente à frente
+    if(!arr.parcial) r.sit = 'Final';
+    else if(r.total > maxOthersM) r.sit = 'Título garantido';
+    else if(above <= 2) r.sit = 'Pódio garantido';
+    else if(below >= 3) r.sit = 'Fora do pódio';
+    else if(r.max < maxOthersG) r.sit = 'Briga pelo pódio';
+    else r.sit = 'Briga pelo título';
+  });
+  return arr;
+}
+//LOGIC-END
+
+/* ============ APP ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const teamById = id => CONFIG.equipes.find(t => t.id === id);
+let state = {}, adj = {}, saldos = {}, parcial = {}, user = null, curTab = 'ranking', curCat = CONFIG.categorias[0].id;
+let db = null, auth = null;
+
+$('#titulo').textContent = CONFIG.titulo;
+$('#subtitulo').textContent = CONFIG.subtitulo;
+document.title = CONFIG.titulo;
+
+function renderTabs(){
+  const tabs = [['ranking','Ranking'],['quadro','Quadro por categoria']];
+  if(user) tabs.push(['lanc','Lançamentos'],['parcial','Parcial'],['saldos','Saldos (desempate)'],['adj','Bônus / Penalidades'],['bkp','Backup']);
+  $('#tabs').innerHTML = tabs.map(([k,n]) => `<button class="tab ${curTab===k?'on':''}" data-t="${k}">${n}</button>`).join('');
+  $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => { curTab = b.dataset.t; render(); });
+}
+
+function renderAuth(){
+  if(user){
+    $('#authbox').innerHTML = `<span class="status">${esc(user.email)}</span> <button class="sec" id="btnOut">Sair</button>`;
+    $('#btnOut').onclick = () => auth.signOut();
+  } else {
+    $('#authbox').innerHTML = `<button class="sec" id="btnIn">Entrar para lançar</button>`;
+    $('#btnIn').onclick = openLogin;
+  }
+}
+
+function openLogin(){
+  const box = $('#aviso');
+  box.innerHTML = `<div class="card"><h2>Entrar</h2>
+    <div class="row"><input type="email" id="lemail" placeholder="e-mail" autocomplete="username">
+    <input type="password" id="lpass" placeholder="código / senha" autocomplete="current-password">
+    <button id="lgo">Entrar</button><button class="sec" id="lcancel">Cancelar</button></div>
+    <div class="mut" id="lerr"></div></div>`;
+  $('#lcancel').onclick = renderAviso;
+  const go = () => {
+    $('#lerr').textContent = 'Entrando…';
+    auth.signInWithEmailAndPassword($('#lemail').value.trim(), $('#lpass').value)
+      .then(() => renderAviso())
+      .catch(() => { $('#lerr').textContent = 'E-mail ou código incorreto.'; });
+  };
+  $('#lgo').onclick = go;
+  $('#lpass').addEventListener('keydown', e => { if(e.key==='Enter') go(); });
+  $('#lemail').focus();
+}
+
+function renderAviso(){
+  $('#aviso').innerHTML = CONFIG.pontosProvisorio
+    ? `<div class="warn"><b>Tabela de pontos provisória.</b> Os pontos exibidos ainda não seguem o regulamento oficial.</div>` : '';
+}
+
+function posCell(p){
+  return p ? `<td class="pos${p<=3?p:''}">${p}º</td>` : `<td class="mut">–</td>`;
+}
+
+let curGrupo = null;
+function renderRanking(){
+  const gr = CONFIG.grupos || [{id:'geral', nome:'Geral', cats:null}];
+  const g = gr.find(x => x.id === curGrupo) || gr[0];
+  const cfgG = Object.assign({}, CONFIG, {categorias: CONFIG.categorias.filter(c => !g.cats || g.cats.indexOf(c.id) >= 0)});
+  const rk = calcular(cfgG, state, adj, saldos, parcial);
+  const proCat = CONFIG.categorias.find(c => c.id === CONFIG.desempateCategoria);
+  const proNome = proCat ? proCat.nome : '';
+  const campos = CONFIG.saldoCampos || [];
+  const par = rk.parcial;
+  let h = `<div class="card">`;
+  if(gr.length > 1) h += `<div class="tabs" style="margin-bottom:10px">${gr.map(x => `<button class="tab ${x.id===g.id?'on':''}" data-g="${x.id}">${esc(x.nome)}</button>`).join('')}</div>`;
+  h += `<h2>${par?'Classificação parcial':'Classificação geral'}${gr.length>1 ? ' — ' + esc(g.nome) : ''}</h2>${par?`<div class="warn"><b>${rk.concl} de ${rk.nCat} categorias concluídas.</b> <b>Garantidos</b> = pontos já definidos + o mínimo das faixas informadas. <b>Máx.</b> = melhor cenário possível. A classificação vira final quando todas as categorias forem concluídas.</div>`:''}<div class="scroll"><table><thead><tr>
+    <th>#</th><th class="l">Equipe</th><th>${par?'Garantidos':'Pontos'}</th>${par?'<th>Máx.</th><th>Situação</th>':''}<th>Bônus/Pen.</th><th>Definidos</th><th>1º</th><th>2º</th><th>3º</th>${campos.length?`<th>${campos.map(c=>esc(c.nome)).join(' / ')}</th>`:''}${proCat?`<th>${esc(proNome)}</th>`:''}</tr></thead><tbody>`;
+  rk.forEach(r => {
+    const vals = campos.map(c => r['s'+c.k]);
+    const sal = vals.some(v => v) ? vals.join(' / ') : '–';
+    const a = r.adj ? `<span class="${r.adj>0?'adjp':'adjn'}">${r.adj>0?'+':''}${r.adj}</span>` : '–';
+    h += `<tr class="${r.rank===1&&r.total>0?'top1':''}"><td class="pos">${r.rank}º${r.tie?'<span class="mut">=</span>':''}</td>
+      <td class="l"><b>${esc(r.t.nome)}</b> <span class="mut">${esc(r.t.sigla)}</span></td>
+      <td class="pts">${r.total}</td>${par?`<td>${r.max}</td><td class="sit ${r.sit.includes('garantido')?'g':(r.sit==='Fora do pódio'?'x':'')}">${esc(r.sit)}</td>`:''}<td>${a}</td><td>${r.base}</td>
+      <td>${r.c[0]}</td><td>${r.c[1]}</td><td>${r.c[2]}</td>${campos.length?`<td>${sal}</td>`:''}${proCat?`<td>${r.pro<99?r.pro+'º':'–'}</td>`:''}</tr>`;
+  });
+  h += `</tbody></table></div>
+    <p class="mut">Desempate: ${esc(CONFIG.textoDesempate)}${proNome?' '+esc(proNome)+'.':''} “=” indica empate total.</p></div>`;
+  $('#v-ranking').innerHTML = h;
+  $('#v-ranking').querySelectorAll('[data-g]').forEach(b => b.onclick = () => { curGrupo = b.dataset.g; renderRanking(); });
+}
+
+function renderQuadro(){
+  const rk = calcular(CONFIG, state, adj, saldos, parcial);
+  let h = `<div class="card"><h2>Colocação por categoria</h2><div class="scroll"><table><thead><tr><th class="l">Equipe</th>`;
+  CONFIG.categorias.forEach(c => h += `<th>${esc(c.nome)}</th>`);
+  h += `<th>Total</th></tr></thead><tbody>`;
+  rk.forEach(r => {
+    h += `<tr><td class="l"><b>${esc(r.t.nome)}</b></td>`;
+    CONFIG.categorias.forEach(c => {
+      const v = (state[c.id]||{})[r.t.id];
+      const f = (parcial[c.id] || {})[r.t.id];
+      if(v && v.out) h += `<td class="mut">${v.wo?'W.O.':'n/p'}</td>`;
+      else if(r.cats[c.id]) h += posCell(r.cats[c.id]);
+      else if(f && f.a && f.b) h += `<td class="mut"><i>${f.a}–${f.b}º</i></td>`;
+      else h += posCell(null);
+    });
+    h += `<td class="pts">${r.total}</td></tr>`;
+  });
+  h += `</tbody></table></div><p class="mut">“n/p” = não participa na categoria. “W.O.” = W.O. integral, não pontua. Em itálico (ex.: 5–8º) = faixa em disputa. “–” = ainda sem informação.</p></div>`;
+  $('#v-ranking').innerHTML = h;
+}
+
+function renderLanc(){
+  const cat = CONFIG.categorias.find(c => c.id === curCat);
+  const cs = state[curCat] || {};
+  const used = {};
+  Object.keys(cs).forEach(id => { if(cs[id] && cs[id].pos) used[cs[id].pos] = (used[cs[id].pos]||0)+1; });
+  let h = `<div class="card"><h2>Lançar resultados</h2>
+    <div class="tabs" id="catTabs" style="margin-bottom:10px">${CONFIG.categorias.map(c=>`<button class="tab ${c.id===curCat?'on':''}" data-cat="${c.id}">${esc(c.nome)}</button>`).join('')}</div>
+    <h3 style="margin:6px 0">${esc(cat.nome)} <span class="mut">— independente das demais categorias</span></h3>
+    <div class="row"><button class="del" id="btnLimpar">Limpar lançamentos desta categoria</button></div>
+    <div class="grid">`;
+  CONFIG.equipes.forEach(t => {
+    const v = cs[t.id] || {};
+    const val = v.wo ? 'wo' : (v.out ? 'out' : (v.pos ? String(v.pos) : ''));
+    const dup = v.pos && used[v.pos] > 1;
+    let opts = `<option value="">—</option><option value="out" ${val==='out'?'selected':''}>Não participa</option><option value="wo" ${val==='wo'?'selected':''}>W.O. (não pontua)</option>`;
+    for(let i=1;i<=CONFIG.pontos.length;i++) opts += `<option value="${i}" ${val===String(i)?'selected':''}>${i}º</option>`;
+    h += `<div class="item ${dup?'dup':''}"><span><b>${esc(t.nome)}</b> <span class="mut">${esc(t.sigla)}</span></span><select data-team="${t.id}">${opts}</select></div>`;
+  });
+  h += `</div><p class="mut">Cada colocação só pode ser usada uma vez por categoria. As alterações são salvas na hora e aparecem para todos.</p></div>`;
+  $('#v-lanc').innerHTML = h;
+  $('#catTabs').querySelectorAll('[data-cat]').forEach(b => b.onclick = () => { curCat = b.dataset.cat; renderLanc(); });
+  $('#btnLimpar').onclick = limparCategoria;
+  $('#v-lanc').querySelectorAll('select[data-team]').forEach(s => s.onchange = () => salvar(s.dataset.team, s.value));
+}
+
+function limparCategoria(){
+  const cat = CONFIG.categorias.find(c => c.id === curCat);
+  const n = Object.keys(state[curCat] || {}).length;
+  if(!n){ alert(`A categoria ${cat.nome} não tem lançamentos.`); return; }
+  if(!confirm(`Apagar os ${n} lançamentos da categoria ${cat.nome}?\n\nOs pontos dessa categoria saem do ranking e você terá que lançar de novo. Esta ação não pode ser desfeita (se precisar, baixe um backup antes na aba Backup).`)) return;
+  db.ref(`ranking/state/${curCat}`).remove().catch(erroEscrita);
+}
+
+function salvar(teamId, val){
+  const ref = db.ref(`ranking/state/${curCat}/${teamId}`);
+  if(val === ''){ ref.remove().catch(erroEscrita); return; }
+  if(val === 'out'){ ref.set({out:true}).catch(erroEscrita); return; }
+  if(val === 'wo'){ ref.set({out:true, wo:true}).catch(erroEscrita); return; }
+  const cs = state[curCat] || {};
+  const clash = Object.keys(cs).find(id => id !== teamId && cs[id] && Number(cs[id].pos) === Number(val));
+  if(clash){
+    alert(`A colocação ${val}º já está com ${teamById(clash).nome} nesta categoria. Altere uma das duas.`);
+    renderLanc(); return;
+  }
+  ref.set({pos:Number(val)}).catch(erroEscrita);
+}
+function erroEscrita(e){ alert('Não foi possível salvar. Verifique a conexão e se você está logado.'); console.error(e); renderLanc(); }
+
+let pSel = {}, pA = '', pB = '', pCatSel = null;
+const PRESETS = CONFIG.presets;
+const PRESET_GRUPOS = CONFIG.presetGrupos;
+
+function idsMarcados(){ return Object.keys(pSel).filter(k => pSel[k]); }
+
+function aplicarFaixa(){
+  const ids = idsMarcados();
+  if(!ids.length){ alert('Marque pelo menos uma equipe.'); return; }
+  if(!pA || !pB){ alert('Escolha a faixa: de … até ….'); return; }
+  const a = Number(pA), b = Number(pB);
+  if(a > b){ alert('A melhor colocação não pode ser maior que a pior.'); return; }
+  const cs = state[curCat] || {};
+  let livres = 0;
+  for(let p = a; p <= b; p++){ if(!Object.values(cs).some(v => v && !v.out && Number(v.pos) === p)) livres++; }
+  if(ids.length > livres && !confirm(`A faixa ${a}º–${b}º tem ${livres} posição(ões) livre(s), mas você marcou ${ids.length} equipes. Aplicar mesmo assim?`)) return;
+  const upd = {};
+  ids.forEach(id => upd[id] = {a, b});
+  pSel = {};
+  db.ref(`ranking/parcial/${curCat}`).update(upd).catch(erroEscrita);
+}
+
+function removerFaixa(){
+  const ids = idsMarcados();
+  if(!ids.length){ alert('Marque pelo menos uma equipe.'); return; }
+  const upd = {};
+  ids.forEach(id => upd[id] = null);
+  pSel = {};
+  db.ref(`ranking/parcial/${curCat}`).update(upd).catch(erroEscrita);
+}
+
+function renderParcial(){
+  if(pCatSel !== curCat){ pSel = {}; pCatSel = curCat; }
+  const cs = state[curCat] || {};
+  const pc = parcial[curCat] || {};
+  const N = CONFIG.pontos.length;
+  const opts = sel => `<option value="">—</option>` + Array.from({length:N}, (_,i) => `<option value="${i+1}" ${String(sel)===String(i+1)?'selected':''}>${i+1}º</option>`).join('');
+  const aberto = t => { const v = cs[t.id]; return !(v && (v.out || v.pos)); };
+  const abertas = CONFIG.equipes.filter(aberto);
+  const defin = CONFIG.equipes.filter(t => !aberto(t));
+  const faixaDe = t => { const f = pc[t.id]; return (f && f.a && f.b) ? f : null; };
+  const nCat = (CONFIG.categorias.find(c => c.id === curCat) || {}).nome || '';
+
+  let h = `<div class="card"><h2>Parcial — faixas por grupo</h2>
+    <p class="mut">Equipes que ainda disputam as mesmas posições ficam na <b>mesma faixa</b>, sem favoritismo. Ex.: antes do 1º confronto, as 4 semifinalistas ficam em 1º–4º. Depois dele, os 2 finalistas passam para 1º–2º e os 2 da disputa de 3º para 3º–4º. A faixa nova <b>substitui</b> a anterior da equipe. Quando o resultado oficial for lançado em <b>Lançamentos</b>, a faixa deixa de valer sozinha.</p>
+    <div class="row"><label>Categoria:</label><select id="pCat">${CONFIG.categorias.map(c=>`<option value="${c.id}" ${c.id===curCat?'selected':''}>${esc(c.nome)}</option>`).join('')}</select>
+    <button class="del" id="pLimpar">Limpar faixas desta categoria</button></div></div>`;
+
+  h += `<div class="card"><h2>1. Escolha a faixa</h2>
+    ${PRESET_GRUPOS.map(g => `<div class="mut" style="margin-top:8px">${esc(g[0])}</div><div class="row">${g[1].map(i => `<button class="sec" data-preset="${i}">${esc(PRESETS[i][0])}</button>`).join('')}</div>`).join('')}
+    <div class="row"><span>ou personalize: de</span><select id="pA">${opts(pA)}</select><span>até</span><select id="pB">${opts(pB)}</select></div>
+    <h2 style="margin-top:14px">2. Marque as equipes dessa faixa</h2>
+    <div class="row"><button class="sec" id="pSem">Marcar as sem faixa</button><button class="sec" id="pDes">Desmarcar todas</button></div>
+    <div class="grid">`;
+  abertas.forEach(t => {
+    const f = faixaDe(t);
+    h += `<label class="item" style="cursor:pointer"><span><b>${esc(t.nome)}</b> <span class="mut">${esc(t.sigla)}</span><br><span class="mut">${f ? `faixa atual: ${f.a}º–${f.b}º` : 'sem faixa'}</span></span>
+      <input type="checkbox" data-t="${t.id}" ${pSel[t.id] ? 'checked' : ''} style="width:24px;height:24px"></label>`;
+  });
+  if(!abertas.length) h += `<div class="mut">Todas as equipes desta categoria já têm resultado oficial.</div>`;
+  h += `</div>
+    <div class="row" style="margin-top:12px"><button id="pAplicar">Aplicar faixa às marcadas</button><button class="del" id="pRemover">Remover faixa das marcadas</button></div></div>`;
+
+  // resumo agrupado
+  const grupos = {};
+  abertas.forEach(t => { const f = faixaDe(t); const k = f ? `${f.a}-${f.b}` : 'x'; (grupos[k] = grupos[k] || []).push(t); });
+  const chaves = Object.keys(grupos).filter(k => k !== 'x').sort((x, y) => {
+    const [xa, xb] = x.split('-').map(Number), [ya, yb] = y.split('-').map(Number);
+    return xa - ya || xb - yb;
+  });
+  const nomes = ts => ts.map(t => esc(t.nome)).join(', ');
+  h += `<div class="card"><h2>Situação — ${esc(nCat)}</h2><div class="scroll"><table><thead><tr><th class="l">Faixa</th><th class="l">Equipes</th></tr></thead><tbody>`;
+  const dd = defin.slice().sort((a, b) => ((cs[a.id].pos || 99) - (cs[b.id].pos || 99)));
+  if(dd.length) h += `<tr><td class="l"><b>Definitivo</b></td><td class="l" style="white-space:normal">${dd.map(t => { const v = cs[t.id]; return `${esc(t.nome)} (${v.wo ? 'W.O.' : (v.out ? 'não participa' : v.pos + 'º')})`; }).join(', ')}</td></tr>`;
+  chaves.forEach(k => {
+    const [a, b] = k.split('-');
+    h += `<tr><td class="l"><b>${a}º–${b}º</b></td><td class="l" style="white-space:normal">${nomes(grupos[k])}</td></tr>`;
+  });
+  if(grupos.x) h += `<tr><td class="l"><b>Sem faixa</b></td><td class="l" style="white-space:normal">${nomes(grupos.x)}</td></tr>`;
+  if(!dd.length && !chaves.length && !grupos.x) h += `<tr><td colspan="2" class="mut">Sem equipes.</td></tr>`;
+  h += `</tbody></table></div>
+    <p class="mut">Sem faixa, a equipe soma 0 nos pontos garantidos e a melhor posição ainda livre nos pontos máximos.</p></div>`;
+
+  $('#v-parcial').innerHTML = h;
+  $('#pCat').onchange = e => { curCat = e.target.value; renderParcial(); };
+  $('#pLimpar').onclick = () => {
+    if(confirm(`Apagar todas as faixas da categoria ${nCat}?`)) db.ref(`ranking/parcial/${curCat}`).remove().catch(erroEscrita);
+  };
+  $('#pA').onchange = e => { pA = e.target.value; };
+  $('#pB').onchange = e => { pB = e.target.value; };
+  $('#v-parcial').querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+    const p = PRESETS[b.dataset.preset];
+    pA = String(p[1]); pB = String(p[2] || N);
+    renderParcial();
+  });
+  $('#v-parcial').querySelectorAll('input[data-t]').forEach(i => i.onchange = () => { pSel[i.dataset.t] = i.checked; });
+  $('#pSem').onclick = () => { pSel = {}; abertas.forEach(t => { if(!faixaDe(t)) pSel[t.id] = true; }); renderParcial(); };
+  $('#pDes').onclick = () => { pSel = {}; renderParcial(); };
+  $('#pAplicar').onclick = aplicarFaixa;
+  $('#pRemover').onclick = removerFaixa;
+}
+
+function renderSaldos(){
+  const campos = CONFIG.saldoCampos || [{k:'j',nome:'Saldo de jogos',step:'1'},{k:'s',nome:'Saldo de sets',step:'1'},{k:'g',nome:'Saldo de games',step:'1'}];
+  let h = `<div class="card"><h2>Saldos para desempate</h2>
+    <p class="mut">Informe o valor acumulado de cada clube no campeonato. O saldo pode ser negativo; o game average é a razão entre games ganhos e games disputados (ex.: 0,675). Só influencia o ranking quando há empate nos critérios anteriores.</p>
+    <div class="scroll"><table><thead><tr><th class="l">Equipe</th>${campos.map(c => `<th>${esc(c.nome)}</th>`).join('')}</tr></thead><tbody>`;
+  CONFIG.equipes.forEach(t => {
+    const s = saldos[t.id] || {};
+    h += `<tr><td class="l"><b>${esc(t.nome)}</b> <span class="mut">${esc(t.sigla)}</span></td>` +
+      campos.map(c => `<td><input type="number" step="${c.step||'1'}" data-t="${t.id}" data-k="${c.k}" value="${s[c.k]!=null?esc(s[c.k]):''}" style="width:100px"></td>`).join('') + `</tr>`;
+  });
+  h += `</tbody></table></div></div>`;
+  $('#v-saldos').innerHTML = h;
+  $('#v-saldos').querySelectorAll('input').forEach(i => i.onchange = () => {
+    const v = i.value === '' ? null : Number(i.value);
+    db.ref(`ranking/saldos/${i.dataset.t}/${i.dataset.k}`).set(v).catch(erroEscrita);
+  });
+}
+
+function renderAdj(){
+  const list = Object.entries(adj).sort((a,b) => (b[1].ts||0)-(a[1].ts||0));
+  let h = `<div class="card"><h2>Bônus e penalidades</h2>
+    <div class="row">
+      <select id="aTeam">${CONFIG.equipes.map(t=>`<option value="${t.id}">${esc(t.nome)}</option>`).join('')}</select>
+      <input type="number" id="aPts" placeholder="pontos (use - para penalidade)" style="width:240px">
+      <input type="text" id="aMot" placeholder="motivo (obrigatório)" style="flex:1;min-width:200px">
+      <button id="aAdd">Adicionar</button>
+    </div>
+    <div class="scroll"><table><thead><tr><th class="l">Equipe</th><th>Pontos</th><th class="l">Motivo</th><th>Por</th><th></th></tr></thead><tbody>`;
+  if(!list.length) h += `<tr><td colspan="5" class="mut">Nenhum ajuste lançado.</td></tr>`;
+  list.forEach(([k,a]) => {
+    const t = teamById(a.team);
+    h += `<tr><td class="l">${esc(t?t.nome:a.team)}</td><td class="${a.pts>=0?'adjp':'adjn'}">${a.pts>0?'+':''}${esc(a.pts)}</td>
+      <td class="l">${esc(a.motivo)}</td><td class="mut">${esc(a.por||'')}</td><td><button class="del" data-k="${k}">Excluir</button></td></tr>`;
+  });
+  h += `</tbody></table></div></div>`;
+  $('#v-adj').innerHTML = h;
+  $('#aAdd').onclick = () => {
+    const pts = Number($('#aPts').value), mot = $('#aMot').value.trim();
+    if(!pts || !mot){ alert('Informe os pontos (diferentes de zero) e o motivo.'); return; }
+    db.ref('ranking/adj').push({team:$('#aTeam').value, pts, motivo:mot, por:user.email, ts:Date.now()}).catch(erroEscrita);
+  };
+  $('#v-adj').querySelectorAll('.del').forEach(b => b.onclick = () => {
+    if(confirm('Excluir este ajuste?')) db.ref('ranking/adj/'+b.dataset.k).remove().catch(erroEscrita);
+  });
+}
+
+function renderBkp(){
+  $('#v-bkp').innerHTML = `<div class="card"><h2>Backup e exportação</h2>
+    <div class="row"><button id="bJson">Baixar backup (JSON)</button><button class="sec" id="bCsv">Exportar ranking (CSV)</button></div>
+    <div class="row"><label class="mut">Restaurar backup (substitui os dados atuais):</label><input type="file" id="bFile" accept=".json"></div>
+    <p class="mut">Baixe um backup ao fim de cada dia de competição e ao encerrar o campeonato.</p></div>`;
+  $('#bJson').onclick = () => baixar(`backup_${CONFIG.arquivo}_${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({ranking:{state, adj, saldos, parcial}}, null, 2), 'application/json');
+  $('#bCsv').onclick = () => {
+    const rk = calcular(CONFIG, state, adj, saldos, parcial);
+    const head = ['Posição','Equipe','Sigla','Pontos','Bônus/Penalidade','Base','1º','2º','3º','Saldo jogos','Saldo sets','Saldo games','Máximo','Situação'].concat(CONFIG.categorias.map(c=>c.nome));
+    const rows = rk.map(r => [r.rank, r.t.nome, r.t.sigla, r.total, r.adj, r.base, r.c[0], r.c[1], r.c[2], r.sj, r.ss, r.sg, r.max, r.sit].concat(CONFIG.categorias.map(c => r.cats[c.id]||'')));
+    const csv = [head].concat(rows).map(l => l.map(x => `"${String(x).replace(/"/g,'""')}"`).join(';')).join('\n');
+    baixar(`ranking_${CONFIG.arquivo}.csv`, '\ufeff'+csv, 'text/csv');
+  };
+  $('#bFile').onchange = e => {
+    const f = e.target.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try{
+        const j = JSON.parse(rd.result);
+        const r = j.ranking || j;
+        if(!confirm('Isto substitui TODOS os dados atuais pelo backup. Continuar?')) return;
+        db.ref('ranking').set({state: r.state || {}, adj: r.adj || {}, saldos: r.saldos || {}, parcial: r.parcial || {}}).then(() => alert('Backup restaurado.')).catch(erroEscrita);
+      }catch(err){ alert('Arquivo inválido.'); }
+    };
+    rd.readAsText(f);
+  };
+}
+function baixar(nome, txt, tipo){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], {type:tipo}));
+  a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+}
+
+function render(){
+  if(!user && ['lanc','parcial','saldos','adj','bkp'].includes(curTab)) curTab = 'ranking';
+  renderTabs(); renderAuth();
+  ['ranking','lanc','parcial','saldos','adj','bkp'].forEach(k => $('#v-'+k).classList.add('hidden'));
+  if(curTab === 'ranking'){ $('#v-ranking').classList.remove('hidden'); renderRanking(); }
+  else if(curTab === 'quadro'){ $('#v-ranking').classList.remove('hidden'); renderQuadro(); }
+  else { $('#v-'+curTab).classList.remove('hidden'); ({lanc:renderLanc, parcial:renderParcial, saldos:renderSaldos, adj:renderAdj, bkp:renderBkp})[curTab](); }
+}
+
+function init(){
+  renderAviso();
+  if(String(CONFIG.firebase.apiKey).indexOf('COLE_AQUI') >= 0){
+    $('#aviso').innerHTML = '<div class="warn"><b>Firebase ainda não configurado.</b> Cole o firebaseConfig do projeto do CBI no bloco CONFIG, no começo do arquivo.</div>';
+    $('#conn').textContent = 'sem Firebase';
+    return;
+  }
+  firebase.initializeApp(CONFIG.firebase);
+  db = firebase.database(); auth = firebase.auth();
+  db.ref('.info/connected').on('value', s => {
+    $('#dot').classList.toggle('on', !!s.val());
+    $('#conn').textContent = s.val() ? 'ao vivo' : 'sem conexão';
+  });
+  db.ref('ranking').on('value', s => {
+    const v = s.val() || {};
+    state = v.state || {}; adj = v.adj || {}; saldos = v.saldos || {}; parcial = v.parcial || {};
+    render();
+  }, err => { $('#conn').textContent = 'erro de leitura'; console.error(err); });
+  auth.onAuthStateChanged(u => { user = u; render(); });
+  render();
+}
+init();
+</script>
+</body>
+</html>
