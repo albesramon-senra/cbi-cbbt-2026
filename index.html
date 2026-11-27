@@ -339,23 +339,54 @@ function renderRanking(){
 
 function renderQuadro(){
   const rk = calcular(CONFIG, state, adj, saldos, parcial);
-  let h = `<div class="card"><h2>Colocação por categoria</h2><div class="scroll"><table><thead><tr><th class="l">Equipe</th>`;
-  CONFIG.categorias.forEach(c => h += `<th>${esc(c.nome)}</th>`);
-  h += `<th>Total</th></tr></thead><tbody>`;
-  rk.forEach(r => {
-    h += `<tr><td class="l"><b>${esc(r.t.nome)}</b></td>`;
-    CONFIG.categorias.forEach(c => {
-      const v = (state[c.id]||{})[r.t.id];
-      const f = (parcial[c.id] || {})[r.t.id];
-      if(v && v.out) h += `<td class="mut">${v.wo?'W.O.':'n/p'}</td>`;
-      else if(r.cats[c.id]) h += posCell(r.cats[c.id]);
-      else if(f && f.a && f.b) h += `<td class="mut"><i>${f.a}–${f.b}º</i></td>`;
-      else h += posCell(null);
+  const grupos = [
+    {nome:'Profissional (F+M)', cats:['FPRO','MPRO'], soma:true}, {nome:'Profissional Feminina', cats:['FPRO']}, {nome:'Profissional Masculina', cats:['MPRO']},
+    {nome:'Base (F+M)', cats:['F16','F18','M16','M18'], soma:true}, {nome:'Base Feminina', cats:['F16','F18']}, {nome:'Base Masculina', cats:['M16','M18']}
+  ];
+  let h = `<div class="card"><div class="tabs" style="margin-bottom:10px">
+    <button class="tab ${curQuadro==='det'?'on':''}" data-q="det">Detalhado (6 categorias)</button>
+    <button class="tab ${curQuadro==='cons'?'on':''}" data-q="cons">Consolidado (4 categorias)</button></div>`;
+  if(curQuadro === 'cons'){
+    h += `<h2>Pontos por categoria — consolidado</h2><div class="scroll"><table><thead><tr><th class="l">Equipe</th>${grupos.map(g => `<th>${esc(g.nome)}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
+    rk.forEach(r => {
+      h += `<tr><td class="l"><b>${esc(r.t.nome)}</b></td>`;
+      grupos.forEach(g => {
+        let pts = 0; const pos = [], pend = []; let any = false;
+        g.cats.forEach(cid => {
+          const v = (state[cid]||{})[r.t.id], f = (parcial[cid]||{})[r.t.id];
+          const nomeC = (CONFIG.categorias.find(c => c.id === cid)||{}).nome || cid;
+          const tag = g.cats.length > 1 ? nomeC.replace(/^(Fem|Masc)\.\s*/,'') + ' ' : '';
+          if(v && v.out){ pos.push(tag + (v.wo ? 'W.O.' : 'n/p')); any = true; }
+          else if(r.cats[cid]){ pts += CONFIG.pontos[r.cats[cid]-1] || 0; pos.push(tag + r.cats[cid] + 'º'); any = true; }
+          else if(f && f.a && f.b){ pend.push(`<i>${tag}${f.a}–${f.b}º</i>`); any = true; }
+        });
+        if(g.soma) h += `<td><b>${pts}</b></td>`;
+        else if(!any) h += `<td class="mut">–</td>`;
+        else h += `<td><b>${pts}</b><br><span class="mut" style="font-size:.78rem">${pos.concat(pend).join(' · ')}</span></td>`;
+      });
+      h += `<td class="pts">${r.total}</td></tr>`;
     });
-    h += `<td class="pts">${r.total}</td></tr>`;
-  });
-  h += `</tbody></table></div><p class="mut">“n/p” = não participa na categoria. “W.O.” = W.O. integral, não pontua. Em itálico (ex.: 5–8º) = faixa em disputa. “–” = ainda sem informação.</p></div>`;
+    h += `</tbody></table></div><p class="mut">Profissional e Base (F+M) mostram a soma dos pontos. Na Base Feminina e Masculina, os pontos são a soma de Sub-16 e Sub-18 (a posição de cada uma aparece abaixo). Para ver Sub-16 e Sub-18 separadas, use o Detalhado. Em itálico = faixa em disputa, ainda sem pontos. “n/p” = não participa. “W.O.” = não pontua. O Total é o do Ranking, com bônus e penalidades.</p></div>`;
+  } else {
+    h += `<h2>Colocação por categoria</h2><div class="scroll"><table><thead><tr><th class="l">Equipe</th>`;
+    CONFIG.categorias.forEach(c => h += `<th>${esc(c.nome)}</th>`);
+    h += `<th>Total</th></tr></thead><tbody>`;
+    rk.forEach(r => {
+      h += `<tr><td class="l"><b>${esc(r.t.nome)}</b></td>`;
+      CONFIG.categorias.forEach(c => {
+        const v = (state[c.id]||{})[r.t.id];
+        const f = (parcial[c.id] || {})[r.t.id];
+        if(v && v.out) h += `<td class="mut">${v.wo?'W.O.':'n/p'}</td>`;
+        else if(r.cats[c.id]) h += posCell(r.cats[c.id]);
+        else if(f && f.a && f.b) h += `<td class="mut"><i>${f.a}–${f.b}º</i></td>`;
+        else h += posCell(null);
+      });
+      h += `<td class="pts">${r.total}</td></tr>`;
+    });
+    h += `</tbody></table></div><p class="mut">“n/p” = não participa na categoria. “W.O.” = W.O. integral, não pontua. Em itálico (ex.: 5–8º) = faixa em disputa. “–” = ainda sem informação.</p></div>`;
+  }
   $('#v-ranking').innerHTML = h;
+  $('#v-ranking').querySelectorAll('[data-q]').forEach(b => b.onclick = () => { curQuadro = b.dataset.q; renderQuadro(); });
 }
 
 function renderLanc(){
@@ -588,7 +619,7 @@ function baixar(nome, txt, tipo){
 }
 
 // ---------- Temporada: acumulado até a 5ª etapa + Finals (6ª etapa) ----------
-let curTemp = 'FPRO';
+let curTemp = 'GERAL', curQuadro = 'det';
 function tKey(c){ return String(c.nome).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); }
 function tVal(c, cid){ const o = tbase[tKey(c)]; return (o && o[cid] != null && o[cid] !== '' && !isNaN(Number(o[cid]))) ? Number(o[cid]) : (c.pts[cid]||0); }
 function renderAcum(){
@@ -617,11 +648,18 @@ function renderAcum(){
 function renderTemporada(){
   const TP = CONFIG.temporada;
   const cats = CONFIG.categorias;
-  const vistas = cats.map(c => ({id:c.id, nome:c.nome, cats:[c.id]})).concat([
+  const nm = id => (cats.find(c => c.id === id) || {}).nome || id;
+  const vistas = [
     {id:'GERAL', nome:'Geral', cats:cats.map(c=>c.id), adj:true},
-    {id:'PROF', nome:'Profissional', cats:['FPRO','MPRO']},
-    {id:'BASE', nome:'Base', cats:['F16','F18','M16','M18']}
-  ]);
+    {id:'PROF', nome:'Profissional (F+M)', cats:['FPRO','MPRO']},
+    {id:'FPRO', nome:'Profissional Feminina', cats:['FPRO']},
+    {id:'MPRO', nome:'Profissional Masculina', cats:['MPRO']},
+    {id:'BASE', nome:'Base (F+M)', cats:['F16','F18','M16','M18'], sub:'Sub-16 + Sub-18, feminino e masculino'},
+    {id:'BF', nome:'Base Feminina', cats:['F16','F18'], sub:'Sub-16 + Sub-18'},
+    {id:'BM', nome:'Base Masculina', cats:['M16','M18'], sub:'Sub-16 + Sub-18'},
+    {id:'M16', nome:nm('M16'), cats:['M16']}, {id:'F16', nome:nm('F16'), cats:['F16']},
+    {id:'F18', nome:nm('F18'), cats:['F18']}, {id:'M18', nome:nm('M18'), cats:['M18']}
+  ];
   const v = vistas.find(x => x.id === curTemp) || vistas[0];
   // pontos do Finals por categoria (garantidos e máximo), sem bônus/penalidades
   const fin = {};
@@ -653,7 +691,7 @@ function renderTemporada(){
     else r.sit = 'Fora da disputa';
   });
   let h = `<div class="card"><div class="tabs" style="margin-bottom:10px">${vistas.map(x => `<button class="tab ${x.id===v.id?'on':''}" data-v="${x.id}">${esc(x.nome)}</button>`).join('')}</div>
-    <h2>Temporada — ${esc(v.nome)}</h2>
+    <h2>Temporada — ${esc(v.nome)}${v.sub?` <span class="mut">(${esc(v.sub)})</span>`:''}</h2>
     <p class="mut">Soma do acumulado até a 5ª etapa com os pontos do Finals (6ª etapa).${par?' Enquanto o Finals não termina, <b>Total</b> usa os pontos garantidos e <b>Máx.</b> o melhor cenário.':''}${v.adj?' Inclui bônus e penalidades lançados no Finals.':''}</p>
     <div class="scroll"><table><thead><tr><th>#</th><th class="l">Clube</th><th>${esc(TP.rotulo)}</th><th>Finals${par?' (garantidos)':''}</th><th>Total${par?' garantido':''}</th>${par?'<th>Máx.</th>':''}<th>Situação</th></tr></thead><tbody>`;
   rows.forEach(r => {
