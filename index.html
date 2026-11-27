@@ -78,6 +78,7 @@ select,input[type=text],input[type=number],input[type=email],input[type=password
   <div id="v-parcial" class="hidden"></div>
   <div id="v-saldos" class="hidden"></div>
   <div id="v-adj" class="hidden"></div>
+  <div id="v-acum" class="hidden"></div>
   <div id="v-bkp" class="hidden"></div>
 </div>
 
@@ -132,6 +133,34 @@ const CONFIG = {
     ['1ª parcial — fase inicial (semifinal e disputas de 5º a 8º e 9º a 12º)', [0, 1, 2]],
     ['2ª parcial — decisões por colocação (substitui a faixa anterior)', [3, 4, 5, 6, 7, 8]]
   ],
+  temporada: {
+    rotulo: 'Até a 5ª etapa',
+    fonte: 'Classificação acumulada 1ª–5ª etapa informada pela organização (valores até a 5ª etapa)',
+    clubes: [
+      {nome:"Praia Clube de Uberlândia", equipe:"PRA", pts:{FPRO:1440, F16:1170, F18:1230, MPRO:1380, M16:1275, M18:1380}},
+      {nome:"Clube Atlético Paulistano", equipe:"PAU", pts:{FPRO:1065, F16:1230, F18:1320, MPRO:1350, M16:1380, M18:1410}},
+      {nome:"Pampulha Iate Clube", equipe:"PIC", pts:{FPRO:1350, F16:1050, F18:1170, MPRO:1170, M16:810, M18:945}},
+      {nome:"Jockey Club de Uberaba", equipe:"JUB", pts:{FPRO:825, F16:780, F18:930, MPRO:960, M16:825, M18:615}},
+      {nome:"Tênis Clube Santa Cruz", equipe:"STC", pts:{FPRO:750, F16:1050, F18:795, MPRO:495, M16:600, M18:750}},
+      {nome:"Clube Campestre", equipe:"CAM", pts:{FPRO:420, F16:375, F18:240, MPRO:1005, M16:855, M18:975}},
+      {nome:"Esporte Clube União Corinthians", equipe:"COR", pts:{FPRO:870, F16:1110, F18:870, MPRO:0, M16:135, M18:0}},
+      {nome:"Clube de Campo de Piracicaba", equipe:"PIR", pts:{FPRO:285, F16:375, F18:285, MPRO:540, M16:510, M18:675}},
+      {nome:"Clube dos Funcionários da CSN", equipe:"CSN", pts:{FPRO:255, F16:255, F18:135, MPRO:420, M16:750, M18:585}},
+      {nome:"America Futebol Clube", equipe:"AME", pts:{FPRO:405, F16:300, F18:315, MPRO:345, M16:330, M18:510}},
+      {nome:"Uberlândia Beach Tennis", equipe:null, pts:{FPRO:0, F16:360, F18:345, MPRO:0, M16:540, M18:360}},
+      {nome:"Treze Futebol Clube", equipe:null, pts:{FPRO:420, F16:105, F18:105, MPRO:225, M16:240, M18:330}},
+      {nome:"Campo Grande Vôlei", equipe:null, pts:{FPRO:0, F16:0, F18:0, MPRO:450, M16:660, M18:285}},
+      {nome:"Caxangá Golf Country Club", equipe:"CAX", pts:{FPRO:0, F16:105, F18:0, MPRO:525, M16:180, M18:255}},
+      {nome:"Lindóia Tênis Clube", equipe:null, pts:{FPRO:135, F16:150, F18:180, MPRO:135, M16:165, M18:180}},
+      {nome:"Ceara Sporting Club", equipe:null, pts:{FPRO:0, F16:0, F18:0, MPRO:300, M16:255, M18:210}},
+      {nome:"Clube dos Oficiais da Polícia Militar", equipe:null, pts:{FPRO:120, F16:150, F18:120, MPRO:75, M16:90, M18:150}},
+      {nome:"Associação Educacional Esportiva e Social do Brasil", equipe:null, pts:{FPRO:210, F16:180, F18:135, MPRO:0, M16:0, M18:0}},
+      {nome:"Associação Esportiva de Beach Tennis do Acre", equipe:null, pts:{FPRO:90, F16:0, F18:0, MPRO:90, M16:0, M18:0}},
+      {nome:"ABREC", equipe:null, pts:{FPRO:0, F16:0, F18:0, MPRO:165, M16:0, M18:0}},
+      {nome:"Eldorado Tênis Clube - Quirinópolis", equipe:null, pts:{FPRO:150, F16:0, F18:0, MPRO:0, M16:0, M18:0}},
+      {nome:"Grêmio Literário e Recreativo Português", equipe:"GLP", pts:{FPRO:0, F16:0, F18:0, MPRO:0, M16:0, M18:0}}
+    ]
+  },
   firebase: {
     apiKey: "AIzaSyBF2pzKfNhvDY3B1BG6EzFfoYtj0xIdnzI",
     authDomain: "brasileiro-cbi-finails-2026.firebaseapp.com",
@@ -227,7 +256,7 @@ function calcular(cfg, state, adj, saldos, parcial){
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const teamById = id => CONFIG.equipes.find(t => t.id === id);
-let state = {}, adj = {}, saldos = {}, parcial = {}, user = null, curTab = 'ranking', curCat = CONFIG.categorias[0].id;
+let state = {}, adj = {}, saldos = {}, parcial = {}, tbase = {}, user = null, curTab = 'ranking', curCat = CONFIG.categorias[0].id;
 let db = null, auth = null;
 
 $('#titulo').textContent = CONFIG.titulo;
@@ -235,8 +264,8 @@ $('#subtitulo').textContent = CONFIG.subtitulo;
 document.title = CONFIG.titulo;
 
 function renderTabs(){
-  const tabs = [['ranking','Ranking'],['quadro','Quadro por categoria']];
-  if(user) tabs.push(['lanc','Lançamentos'],['parcial','Parcial'],['saldos','Saldos (desempate)'],['adj','Bônus / Penalidades'],['bkp','Backup']);
+  const tabs = [['ranking','Ranking'],['temp','Temporada'],['quadro','Quadro por categoria']];
+  if(user) tabs.push(['lanc','Lançamentos'],['parcial','Parcial'],['saldos','Saldos (desempate)'],['adj','Bônus / Penalidades'],['acum','Acumulado (editar)'],['bkp','Backup']);
   $('#tabs').innerHTML = tabs.map(([k,n]) => `<button class="tab ${curTab===k?'on':''}" data-t="${k}">${n}</button>`).join('');
   $('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => { curTab = b.dataset.t; render(); });
 }
@@ -530,7 +559,7 @@ function renderBkp(){
     <div class="row"><button id="bJson">Baixar backup (JSON)</button><button class="sec" id="bCsv">Exportar ranking (CSV)</button></div>
     <div class="row"><label class="mut">Restaurar backup (substitui os dados atuais):</label><input type="file" id="bFile" accept=".json"></div>
     <p class="mut">Baixe um backup ao fim de cada dia de competição e ao encerrar o campeonato.</p></div>`;
-  $('#bJson').onclick = () => baixar(`backup_${CONFIG.arquivo}_${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({ranking:{state, adj, saldos, parcial}}, null, 2), 'application/json');
+  $('#bJson').onclick = () => baixar(`backup_${CONFIG.arquivo}_${new Date().toISOString().slice(0,10)}.json`, JSON.stringify({ranking:{state, adj, saldos, parcial, temporada: tbase}}, null, 2), 'application/json');
   $('#bCsv').onclick = () => {
     const rk = calcular(CONFIG, state, adj, saldos, parcial);
     const head = ['Posição','Equipe','Sigla','Pontos','Bônus/Penalidade','Base','1º','2º','3º','Saldo jogos','Saldo sets','Saldo games','Máximo','Situação'].concat(CONFIG.categorias.map(c=>c.nome));
@@ -546,7 +575,7 @@ function renderBkp(){
         const j = JSON.parse(rd.result);
         const r = j.ranking || j;
         if(!confirm('Isto substitui TODOS os dados atuais pelo backup. Continuar?')) return;
-        db.ref('ranking').set({state: r.state || {}, adj: r.adj || {}, saldos: r.saldos || {}, parcial: r.parcial || {}}).then(() => alert('Backup restaurado.')).catch(erroEscrita);
+        db.ref('ranking').set({state: r.state || {}, adj: r.adj || {}, saldos: r.saldos || {}, parcial: r.parcial || {}, temporada: r.temporada || {}}).then(() => alert('Backup restaurado.')).catch(erroEscrita);
       }catch(err){ alert('Arquivo inválido.'); }
     };
     rd.readAsText(f);
@@ -558,13 +587,91 @@ function baixar(nome, txt, tipo){
   a.download = nome; document.body.appendChild(a); a.click(); a.remove();
 }
 
+// ---------- Temporada: acumulado até a 5ª etapa + Finals (6ª etapa) ----------
+let curTemp = 'FPRO';
+function tKey(c){ return String(c.nome).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); }
+function tVal(c, cid){ const o = tbase[tKey(c)]; return (o && o[cid] != null && o[cid] !== '' && !isNaN(Number(o[cid]))) ? Number(o[cid]) : (c.pts[cid]||0); }
+function renderAcum(){
+  const TP = CONFIG.temporada, cats = CONFIG.categorias;
+  let h = `<div class="card"><h2>Acumulado até a 5ª etapa (editar)</h2>
+    <p class="mut">Pontos de cada clube por categoria até a 5ª etapa. Corrija aqui se a organização alterar algum valor. A alteração é salva na hora e aparece na aba Temporada. Campo limpo volta ao valor original da classificação informada. Células alteradas ficam destacadas.</p>
+    <div class="scroll"><table><thead><tr><th class="l">Clube</th>${cats.map(c => `<th>${esc(c.nome)}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
+  TP.clubes.forEach(c => {
+    const k = tKey(c);
+    const tot = cats.reduce((s,ct) => s + tVal(c, ct.id), 0);
+    h += `<tr><td class="l"><b>${esc(c.nome)}</b></td>` + cats.map(ct => {
+      const alt = tbase[k] && tbase[k][ct.id] != null && tbase[k][ct.id] !== '';
+      return `<td><input type="number" step="15" min="0" data-k="${k}" data-c="${ct.id}" value="${tVal(c, ct.id)}" title="valor original: ${c.pts[ct.id]||0}" style="width:78px${alt?';background:#fff3cd':''}"></td>`;
+    }).join('') + `<td class="pts">${tot}</td></tr>`;
+  });
+  h += `</tbody></table></div></div>`;
+  $('#v-acum').innerHTML = h;
+  $('#v-acum').querySelectorAll('input').forEach(i => i.onchange = () => {
+    const ref = db.ref(`ranking/temporada/${i.dataset.k}/${i.dataset.c}`);
+    const clube = TP.clubes.find(c => tKey(c) === i.dataset.k);
+    const orig = clube ? (clube.pts[i.dataset.c]||0) : 0;
+    if(i.value === '' || Number(i.value) === orig) ref.remove().catch(erroEscrita);
+    else ref.set(Number(i.value)).catch(erroEscrita);
+  });
+}
+function renderTemporada(){
+  const TP = CONFIG.temporada;
+  const cats = CONFIG.categorias;
+  const vistas = cats.map(c => ({id:c.id, nome:c.nome, cats:[c.id]})).concat([
+    {id:'GERAL', nome:'Geral', cats:cats.map(c=>c.id), adj:true},
+    {id:'PROF', nome:'Profissional', cats:['FPRO','MPRO']},
+    {id:'BASE', nome:'Base', cats:['F16','F18','M16','M18']}
+  ]);
+  const v = vistas.find(x => x.id === curTemp) || vistas[0];
+  // pontos do Finals por categoria (garantidos e máximo), sem bônus/penalidades
+  const fin = {};
+  let concl = 0;
+  v.cats.forEach(cid => {
+    const cfg1 = Object.assign({}, CONFIG, {categorias: cats.filter(c => c.id === cid)});
+    const rk = calcular(cfg1, state, {}, saldos, parcial);
+    if(rk.concl) concl++;
+    rk.forEach(r => { const f = fin[r.t.id] || (fin[r.t.id] = {min:0, max:0, c:[0,0,0]}); f.min += r.base + r.pmin; f.max += r.base + r.pmax; for(let i=0;i<3;i++) f.c[i] += r.c[i]; });
+  });
+  const adjTot = {};
+  if(v.adj) Object.values(adj || {}).forEach(a => { if(a && a.team) adjTot[a.team] = (adjTot[a.team]||0) + (Number(a.pts)||0); });
+  const par = concl < v.cats.length;
+  let rows = TP.clubes.map(c => {
+    const b = v.cats.reduce((s,cid) => s + tVal(c, cid), 0);
+    const f = (c.equipe && fin[c.equipe]) || {min:0, max:0, c:[0,0,0]};
+    const a = (c.equipe && adjTot[c.equipe]) || 0;
+    return {nome:c.nome, b, fmin:f.min + a, fmax:f.max + a, a, tmin:b + f.min + a, tmax:b + f.max + a, c:f.c};
+  }).filter(r => r.b > 0 || r.fmax > 0);
+  rows.sort((x,y) => (y.tmin - x.tmin) || (y.tmax - x.tmax) || x.nome.localeCompare(y.nome,'pt-BR'));
+  let last = null, lr = 0;
+  rows.forEach((r,i) => { const k = r.tmin + '|' + r.tmax; if(k === last){ r.rank = lr; r.tie = true; } else { r.rank = i+1; lr = r.rank; last = k; } });
+  rows.forEach(r => {
+    const o = rows.filter(x => x !== r);
+    const maxO = o.length ? Math.max(...o.map(x => x.tmax)) : 0;
+    if(!par) r.sit = r.rank === 1 ? 'Campeão' : '';
+    else if(r.tmin > maxO) r.sit = 'Título garantido';
+    else if(r.tmax >= rows[0].tmin) r.sit = 'Briga pelo título';
+    else r.sit = 'Fora da disputa';
+  });
+  let h = `<div class="card"><div class="tabs" style="margin-bottom:10px">${vistas.map(x => `<button class="tab ${x.id===v.id?'on':''}" data-v="${x.id}">${esc(x.nome)}</button>`).join('')}</div>
+    <h2>Temporada — ${esc(v.nome)}</h2>
+    <p class="mut">Soma do acumulado até a 5ª etapa com os pontos do Finals (6ª etapa).${par?' Enquanto o Finals não termina, <b>Total</b> usa os pontos garantidos e <b>Máx.</b> o melhor cenário.':''}${v.adj?' Inclui bônus e penalidades lançados no Finals.':''}</p>
+    <div class="scroll"><table><thead><tr><th>#</th><th class="l">Clube</th><th>${esc(TP.rotulo)}</th><th>Finals${par?' (garantidos)':''}</th><th>Total${par?' garantido':''}</th>${par?'<th>Máx.</th>':''}<th>Situação</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    h += `<tr class="${r.rank===1&&r.tmin>0?'top1':''}"><td class="pos">${r.rank}º${r.tie?'<span class="mut">=</span>':''}</td><td class="l"><b>${esc(r.nome)}</b></td><td>${r.b}</td><td>${r.fmin}</td><td class="pts">${r.tmin}</td>${par?`<td>${r.tmax}</td>`:''}<td class="sit ${r.sit==='Título garantido'||r.sit==='Campeão'?'g':(r.sit==='Fora da disputa'?'x':'')}">${esc(r.sit)}</td></tr>`;
+  });
+  h += `</tbody></table></div><p class="mut">${concl} de ${v.cats.length} ${v.cats.length>1?'categorias do Finals concluídas':'categoria do Finals concluída'}. Clubes que não disputam o Finals mantêm o acumulado. Em empate de total, os clubes dividem a posição (“=”); o critério de desempate da temporada ainda será definido. Fonte do acumulado: ${esc(TP.fonte)}.</p></div>`;
+  $('#v-ranking').innerHTML = h;
+  $('#v-ranking').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { curTemp = b.dataset.v; renderTemporada(); });
+}
+
 function render(){
-  if(!user && ['lanc','parcial','saldos','adj','bkp'].includes(curTab)) curTab = 'ranking';
+  if(!user && ['lanc','parcial','saldos','adj','acum','bkp'].includes(curTab)) curTab = 'ranking';
   renderTabs(); renderAuth();
-  ['ranking','lanc','parcial','saldos','adj','bkp'].forEach(k => $('#v-'+k).classList.add('hidden'));
+  ['ranking','lanc','parcial','saldos','adj','acum','bkp'].forEach(k => $('#v-'+k).classList.add('hidden'));
   if(curTab === 'ranking'){ $('#v-ranking').classList.remove('hidden'); renderRanking(); }
+  else if(curTab === 'temp'){ $('#v-ranking').classList.remove('hidden'); renderTemporada(); }
   else if(curTab === 'quadro'){ $('#v-ranking').classList.remove('hidden'); renderQuadro(); }
-  else { $('#v-'+curTab).classList.remove('hidden'); ({lanc:renderLanc, parcial:renderParcial, saldos:renderSaldos, adj:renderAdj, bkp:renderBkp})[curTab](); }
+  else { $('#v-'+curTab).classList.remove('hidden'); ({lanc:renderLanc, parcial:renderParcial, saldos:renderSaldos, adj:renderAdj, acum:renderAcum, bkp:renderBkp})[curTab](); }
 }
 
 function init(){
@@ -582,7 +689,7 @@ function init(){
   });
   db.ref('ranking').on('value', s => {
     const v = s.val() || {};
-    state = v.state || {}; adj = v.adj || {}; saldos = v.saldos || {}; parcial = v.parcial || {};
+    state = v.state || {}; adj = v.adj || {}; saldos = v.saldos || {}; parcial = v.parcial || {}; tbase = v.temporada || {};
     render();
   }, err => { $('#conn').textContent = 'erro de leitura'; console.error(err); });
   auth.onAuthStateChanged(u => { user = u; render(); });
